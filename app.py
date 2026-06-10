@@ -1,17 +1,25 @@
 """
-app.py  — Streamlit frontend for DocQuery
+app.py — Pure Streamlit frontend + backend for DocQuery
 
 A proper chat assistant UI with:
   - Sidebar: upload + document list
   - Main: full chat conversation with source attribution
   - Rewritten query shown as a subtle tooltip
+  
+No FastAPI dependency - everything runs inside Streamlit.
 """
 
 import uuid
-import requests
 import streamlit as st
+from typing import List, Dict
 
-BACKEND_URL = "http://localhost:8000"
+# Import all services directly
+from services.pdf_extractor import extract_text_from_pdf
+from services.chunker import chunk_text
+from services.embedder import embed_chunks
+from services.vector_store import VectorStore
+from services.qa_engine import answer_question
+from services.memory import get_history, append_turn, clear_session, get_last_n_turns
 
 # ------------------------------------------------------------------
 # Page config
@@ -30,81 +38,191 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
 }
 
-/* ---- sidebar ---- */
-[data-testid="stSidebar"] {
-    background: #0f1117;
-    border-right: 1px solid #1e2130;
-}
-[data-testid="stSidebar"] * {
-    color: #c8d0e0 !important;
-}
-
-/* ---- main area ---- */
+/* Main background */
 [data-testid="stAppViewContainer"] > .main {
-    background: #13151f;
+    background: linear-gradient(
+        135deg,
+        #f8fafc 0%,
+        #eef2ff 100%
+    );
 }
 
-/* ---- chat messages ---- */
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: linear-gradient(
+        180deg,
+        #111827 0%,
+        #1f2937 100%
+    );
+}
+
+[data-testid="stSidebar"] * {
+    color: #f9fafb !important;
+}
+
+/* Headers */
+h1, h2, h3 {
+    color: #312e81 !important;
+    font-weight: 700 !important;
+}
+
+/* Chat cards */
 [data-testid="stChatMessage"] {
-    background: #1a1d2e !important;
-    border: 1px solid #252840 !important;
-    border-radius: 12px !important;
-    margin-bottom: 8px !important;
+    background: rgba(255,255,255,0.85) !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(99,102,241,0.12) !important;
+    padding: 12px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.05);
 }
 
-/* ---- source badge ---- */
+/* Input box */
+[data-testid="stChatInput"] textarea {
+    background: white !important;
+    color: #111827 !important;
+    border: 1px solid #c7d2fe !important;
+    border-radius: 14px !important;
+}
+
+/* Buttons */
+.stButton button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    border: none !important;
+    background: linear-gradient(
+        135deg,
+        #6366f1,
+        #06b6d4
+    ) !important;
+    color: white !important;
+}
+
+/* Document cards */
+.doc-pill {
+    background: white;
+    border-left: 4px solid #6366f1;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    color: #111827 !important;
+}
+
+/* Source badges */
 .source-badge {
     display: inline-block;
-    background: #1e2a4a;
-    color: #7eb8f7 !important;
-    font-family: 'IBM Plex Mono', monospace;
+    background: #e0e7ff;
+    color: #4338ca !important;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    padding: 4px 10px;
     font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    margin-right: 4px;
-    margin-top: 6px;
-    border: 1px solid #2e4070;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-top: 8px;
 }
 
-/* ---- rewritten query ---- */
+/* Query rewrite */
 .rewrite-note {
-    color: #5a6480 !important;
-    font-size: 11px;
-    font-family: 'IBM Plex Mono', monospace;
-    margin-top: 4px;
+    color: #64748b !important;
+    font-size: 12px;
+    margin-top: 8px;
 }
 
-/* ---- doc pill ---- */
-.doc-pill {
-    background: #1a1d2e;
-    border: 1px solid #2a2f4a;
-    border-radius: 6px;
-    padding: 6px 10px;
-    margin-bottom: 6px;
-    font-size: 13px;
-    color: #a0aac0 !important;
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
 }
 
-/* ---- header ---- */
-h1, h2, h3 {
-    font-family: 'IBM Plex Sans', sans-serif !important;
-    color: #e8eaf6 !important;
+.empty-state .icon {
+    font-size: 72px;
 }
 
-/* ---- input ---- */
-[data-testid="stChatInput"] textarea {
-    background: #1a1d2e !important;
-    color: #e8eaf6 !important;
-    border: 1px solid #2a2f4a !important;
+.empty-state .title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #312e81;
+}
+
+.empty-state .subtitle {
+    color: #64748b;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------
+# Helper functions for document processing
+# ------------------------------------------------------------------
+
+def is_useful_chunk(text: str) -> bool:
+    """Filter out boilerplate chunks that add noise."""
+    t = text.lower().strip()
+    if len(t) < 20:
+        return False
+    noise_patterns = [
+        "creative commons",
+        "doi.org",
+        "all rights reserved",
+        "terms and conditions",
+        "this page intentionally left blank",
+        "table of contents",
+    ]
+    return not any(p in t for p in noise_patterns)
+
+
+def index_document(file_content: bytes, filename: str, vector_store: VectorStore, doc_registry: Dict) -> Dict:
+    """
+    Index a single PDF document and add to vector store.
+    Returns metadata about the indexed document.
+    """
+    # Save temporarily (PyMuPDF needs a file path)
+    import tempfile
+    import os
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(file_content)
+        tmp_path = tmp_file.name
+    
+    try:
+        # Extract text
+        text, metadata = extract_text_from_pdf(tmp_path)
+        
+        # Chunk
+        chunks = chunk_text(text, chunk_size=600, overlap=120)
+        chunks = [c for c in chunks if is_useful_chunk(c["text"])]
+        
+        if not chunks:
+            raise ValueError("No usable text extracted from PDF.")
+        
+        # Embed
+        texts = [c["text"] for c in chunks]
+        embeddings = embed_chunks(texts)
+        
+        # Index
+        vector_store.add(embeddings, chunks, filename)
+        
+        # Registry
+        doc_info = {
+            **metadata,
+            "num_chunks": len(chunks),
+            "doc_id": filename,
+            "filename": filename,
+        }
+        doc_registry[filename] = doc_info
+        
+        return doc_info
+        
+    finally:
+        # Clean up temp file
+        os.unlink(tmp_path)
+
 
 # ------------------------------------------------------------------
 # Session state bootstrap
@@ -119,7 +237,13 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = []  # list of dicts from /upload response
+    st.session_state.uploaded_docs = []  # list of dicts
+
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = VectorStore(dim=384)
+
+if "doc_registry" not in st.session_state:
+    st.session_state.doc_registry = {}
 
 # ------------------------------------------------------------------
 # Sidebar
@@ -148,29 +272,16 @@ with st.sidebar:
 
                 with st.spinner(f"Indexing {uf.name}…"):
                     try:
-                        resp = requests.post(
-                            f"{BACKEND_URL}/upload",
-                            files={"file": (uf.name, uf.read(), "application/pdf")},
-                            timeout=120,
+                        doc_info = index_document(
+                            uf.getvalue(),
+                            uf.name,
+                            st.session_state.vector_store,
+                            st.session_state.doc_registry
                         )
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            st.session_state.uploaded_docs.append({
-                                "filename": uf.name,
-                                "num_chunks": data.get("num_chunks", "?"),
-                                "num_pages": data.get("num_pages", "?"),
-                                "title": data.get("title", uf.name),
-                            })
-                            st.success(f"✅ {uf.name} — {data.get('num_chunks', '?')} chunks")
-                        else:
-                            detail = resp.json().get("detail", resp.text)
-                            st.error(f"❌ {uf.name}: {detail}")
-
-                    except requests.exceptions.ConnectionError:
-                        st.error("❌ Cannot connect to backend (port 8000). Is FastAPI running?")
-                        break
-                    except requests.exceptions.Timeout:
-                        st.error(f"❌ {uf.name}: Indexing timed out.")
+                        st.session_state.uploaded_docs.append(doc_info)
+                        st.success(f"✅ {uf.name} — {doc_info['num_chunks']} chunks")
+                    except Exception as e:
+                        st.error(f"❌ {uf.name}: {str(e)}")
 
     st.divider()
     st.markdown("### Loaded Documents")
@@ -193,12 +304,17 @@ with st.sidebar:
         if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())
+            # Clear memory service as well
+            clear_session(st.session_state.session_id)
             st.rerun()
     with col2:
         if st.button("🔄 Reset All", use_container_width=True):
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())
             st.session_state.uploaded_docs = []
+            st.session_state.vector_store = VectorStore(dim=384)
+            st.session_state.doc_registry = {}
+            clear_session(st.session_state.session_id)
             st.rerun()
 
     st.caption(f"Session: `{st.session_state.session_id[:8]}…`")
@@ -207,7 +323,14 @@ with st.sidebar:
 # Main chat area
 # ------------------------------------------------------------------
 
-st.markdown("## 💬 Document Chat")
+st.markdown("""
+<div style='text-align:center;padding:10px 0 20px 0'>
+<h1 style='color:#760031'>🤖 DocQuery</h1>
+<p style='color:#64748b'>
+Conversational Document Intelligence Platform
+</p>
+</div>
+""", unsafe_allow_html=True)
 
 if not st.session_state.uploaded_docs:
     st.markdown("""
@@ -250,35 +373,34 @@ if prompt := st.chat_input("Ask a question about your documents…"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Get answer from backend
+    # Get answer from backend (now directly calling services)
     with st.chat_message("assistant"):
         with st.spinner("Searching documents…"):
             try:
-                resp = requests.post(
-                    f"{BACKEND_URL}/ask",
-                    json={
-                        "session_id": st.session_state.session_id,
-                        "question": prompt,
-                    },
-                    timeout=60,
+                # Get conversation history
+                history = get_last_n_turns(st.session_state.session_id, n=4)
+                
+                # Call QA engine directly
+                result = answer_question(
+                    question=prompt,
+                    vector_store=st.session_state.vector_store,
+                    history=history,
                 )
-
-                if resp.status_code == 200:
-                    data = resp.json()
-                    answer = data.get("answer", "No answer returned.")
-                    sources = data.get("sources", [])
-                    rewritten = data.get("rewritten_query", "")
-                else:
-                    answer = f"❌ Backend error (HTTP {resp.status_code}): {resp.text}"
-                    sources = []
-                    rewritten = ""
-
-            except requests.exceptions.ConnectionError:
-                answer = "❌ Cannot reach the backend on port 8000. Make sure FastAPI is running."
-                sources = []
-                rewritten = ""
-            except requests.exceptions.Timeout:
-                answer = "❌ Request timed out. The document may be very large."
+                
+                answer = result["answer"]
+                sources = result["sources"]
+                rewritten = result["rewritten_query"]
+                
+                # Store in memory service
+                append_turn(
+                    st.session_state.session_id,
+                    prompt,
+                    answer,
+                    sources,
+                )
+                
+            except Exception as e:
+                answer = f"❌ Error: {str(e)}"
                 sources = []
                 rewritten = ""
 
