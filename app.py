@@ -4,9 +4,7 @@ app.py — Pure Streamlit frontend + backend for DocQuery
 A proper chat assistant UI with:
   - Sidebar: upload + document list
   - Main: full chat conversation with source attribution
-  - Rewritten query shown as a subtle tooltip
-  
-No FastAPI dependency - everything runs inside Streamlit.
+  - Custom file upload display (no CSS override issues)
 """
 
 import uuid
@@ -33,7 +31,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------
-# Custom CSS — clean, professional theme with proper contrast
+# Custom CSS — clean, simple theme
 # ------------------------------------------------------------------
 
 st.markdown("""
@@ -44,171 +42,104 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* Main background - light theme */
+/* Main background */
 [data-testid="stAppViewContainer"] > .main {
-    background: linear-gradient(
-        135deg,
-        #f8fafc 0%,
-        #eef2ff 100%
-    );
+    background: #f8fafc;
 }
 
-/* Sidebar - neutral dark but not too dark */
+/* Sidebar */
 [data-testid="stSidebar"] {
-    background: #1a1a2e !important;
-    background: linear-gradient(180deg, #16213e 0%, #0f3460 100%) !important;
+    background: #1e293b;
 }
 
-/* Sidebar text - ensure high contrast */
 [data-testid="stSidebar"] .stMarkdown,
 [data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stTextInput label,
-[data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] .stCaption,
-[data-testid="stSidebar"] .caption {
-    color: #e2e8f0 !important;
+[data-testid="stSidebar"] label {
+    color: #f1f5f9 !important;
 }
 
-/* Sidebar headers */
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] .stMarkdown h1,
-[data-testid="stSidebar"] .stMarkdown h2,
-[data-testid="stSidebar"] .stMarkdown h3 {
+[data-testid="stSidebar"] h3 {
     color: #ffffff !important;
-    font-weight: 600 !important;
 }
 
-/* Document cards - SOLID background with high contrast */
+/* Document cards */
 .doc-pill {
-    background: #2d2d44 !important;
-    border-left: 4px solid #6366f1 !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
-    margin-bottom: 10px !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+    background: #334155;
+    border-left: 4px solid #818cf8;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
 }
 
 .doc-pill,
-.doc-pill *,
-.doc-pill b,
-.doc-pill strong,
-.doc-pill span {
+.doc-pill * {
     color: #f1f5f9 !important;
 }
 
-.doc-pill span[style*="color"] {
-    color: #cbd5e1 !important;
+/* Custom file list styling */
+.custom-file-list {
+    margin-top: 10px;
 }
 
-/* File uploader container in sidebar */
-[data-testid="stSidebar"] [data-testid="stFileUploader"] {
-    background: transparent !important;
+.custom-file-item {
+    background: #334155;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-[data-testid="stSidebar"] [data-testid="stFileUploader"] p,
-[data-testid="stSidebar"] [data-testid="stFileUploader"] label {
-    color: #e2e8f0 !important;
-}
-
-/* Uploaded file names - CRITICAL FIX */
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"],
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] > div,
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] span,
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] p,
-[data-testid="stSidebar"] .stFileUploaderFile,
-[data-testid="stSidebar"] .stFileUploaderFile span,
-[data-testid="stSidebar"] .uploadedFile {
+.custom-file-name {
     color: #f1f5f9 !important;
-    background-color: #2d2d44 !important;
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
 }
 
-/* Make uploaded file names visible */
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {
-    background: #2d2d44 !important;
-    border-radius: 8px !important;
-    padding: 8px !important;
-    margin: 4px 0 !important;
-}
-
-/* Alert/info/warning messages in sidebar */
-[data-testid="stSidebar"] .stAlert {
-    background: #2d2d44 !important;
-    border-left-color: #6366f1 !important;
-}
-
-[data-testid="stSidebar"] .stAlert p {
-    color: #e2e8f0 !important;
-}
-
-/* Sidebar buttons */
-[data-testid="stSidebar"] .stButton button {
-    background: linear-gradient(135deg, #6366f1, #06b6d4) !important;
+.custom-file-remove {
+    background: #ef4444;
     color: white !important;
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-    border: none !important;
+    border: none;
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 10px;
 }
 
-[data-testid="stSidebar"] .stButton button:hover {
-    transform: translateY(-1px);
-    transition: all 0.3s ease;
-}
-
-/* Sidebar divider */
-[data-testid="stSidebar"] hr {
-    border-color: #334155 !important;
-    margin: 20px 0 !important;
-}
-
-/* Sidebar info text */
-[data-testid="stSidebar"] .stInfo,
-[data-testid="stSidebar"] .stInfo p {
-    color: #e2e8f0 !important;
-    background: #2d2d44 !important;
-}
-
-/* Headers in main area */
-h1, h2, h3 {
-    color: #312e81 !important;
-    font-weight: 700 !important;
+.custom-file-remove:hover {
+    background: #dc2626;
 }
 
 /* Chat cards */
 [data-testid="stChatMessage"] {
-    background: rgba(255,255,255,0.95) !important;
-    border-radius: 18px !important;
-    border: 1px solid rgba(99,102,241,0.15) !important;
-    padding: 12px !important;
-    margin-bottom: 12px !important;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+    background: #ffffff;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    margin-bottom: 12px;
 }
 
 /* Input box */
 [data-testid="stChatInput"] textarea {
-    background: white !important;
-    color: #111827 !important;
-    border: 1px solid #c7d2fe !important;
-    border-radius: 14px !important;
-}
-
-/* Main area buttons */
-.stButton button {
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-    border: none !important;
-    background: linear-gradient(135deg, #6366f1, #06b6d4) !important;
-    color: white !important;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
 }
 
 /* Source badges */
 .source-badge {
     display: inline-block;
     background: #e0e7ff;
-    color: #4338ca !important;
-    border: 1px solid #c7d2fe;
+    color: #4338ca;
     border-radius: 999px;
     padding: 4px 10px;
     font-size: 11px;
@@ -217,47 +148,24 @@ h1, h2, h3 {
     margin-top: 8px;
 }
 
-/* Query rewrite */
-.rewrite-note {
-    color: #64748b !important;
-    font-size: 12px;
-    margin-top: 8px;
+/* Buttons */
+.stButton button {
+    border-radius: 12px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #6366f1, #06b6d4);
+    color: white;
+    border: none;
 }
 
-/* Empty state */
-.empty-state {
-    text-align: center;
-    padding: 80px 20px;
-}
-
-.empty-state .icon {
-    font-size: 72px;
-}
-
-.empty-state .title {
-    font-size: 28px;
-    font-weight: 700;
-    color: #312e81;
-}
-
-.empty-state .subtitle {
-    color: #64748b;
-}
-
-/* Success/warning/info messages */
-.stAlert {
-    border-radius: 12px !important;
-}
-
-/* Make sure all text in sidebar document list is visible */
-[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p,
-[data-testid="stSidebar"] .element-container p {
-    color: #e2e8f0 !important;
+/* Hide default file uploader details we don't need */
+[data-testid="stSidebar"] .stFileUploaderFile {
+    display: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
 # ------------------------------------------------------------------
-# Helper functions for document processing
+# Helper functions
 # ------------------------------------------------------------------
 
 def is_useful_chunk(text: str) -> bool:
@@ -277,11 +185,7 @@ def is_useful_chunk(text: str) -> bool:
 
 
 def index_document(file_content: bytes, filename: str, vector_store: VectorStore, doc_registry: Dict) -> Dict:
-    """
-    Index a single PDF document and add to vector store.
-    Returns metadata about the indexed document.
-    """
-    # Save temporarily (PyMuPDF needs a file path)
+    """Index a single PDF document and add to vector store."""
     import tempfile
     import os
     
@@ -290,24 +194,18 @@ def index_document(file_content: bytes, filename: str, vector_store: VectorStore
         tmp_path = tmp_file.name
     
     try:
-        # Extract text
         text, metadata = extract_text_from_pdf(tmp_path)
-        
-        # Chunk
         chunks = chunk_text(text, chunk_size=600, overlap=120)
         chunks = [c for c in chunks if is_useful_chunk(c["text"])]
         
         if not chunks:
             raise ValueError("No usable text extracted from PDF.")
         
-        # Embed
         texts = [c["text"] for c in chunks]
         embeddings = embed_chunks(texts)
         
-        # Index
         vector_store.add(embeddings, chunks, filename)
         
-        # Registry
         doc_info = {
             **metadata,
             "num_chunks": len(chunks),
@@ -317,9 +215,7 @@ def index_document(file_content: bytes, filename: str, vector_store: VectorStore
         doc_registry[filename] = doc_info
         
         return doc_info
-        
     finally:
-        # Clean up temp file
         os.unlink(tmp_path)
 
 
@@ -331,18 +227,20 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
 if "messages" not in st.session_state:
-    # Each message: {"role": "user"|"assistant", "content": str,
-    #                "sources": list, "rewritten": str}
     st.session_state.messages = []
 
 if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = []  # list of dicts
+    st.session_state.uploaded_docs = []
+
+if "pending_files" not in st.session_state:
+    st.session_state.pending_files = []  # Files to upload but not yet indexed
 
 if "vector_store" not in st.session_state:
     st.session_state.vector_store = VectorStore(dim=384)
 
 if "doc_registry" not in st.session_state:
     st.session_state.doc_registry = {}
+
 
 # ------------------------------------------------------------------
 # Sidebar
@@ -354,45 +252,69 @@ with st.sidebar:
     st.divider()
 
     st.markdown("### Upload Documents")
-
+    
+    # Simple file uploader (we'll handle display ourselves)
     uploaded_files = st.file_uploader(
-        "Choose PDF files",
+        "Select PDF files",
         type=["pdf"],
         accept_multiple_files=True,
         label_visibility="collapsed",
     )
-
+    
+    # Store selected files in pending state
     if uploaded_files:
-        if st.button("⚙️ Index Documents", use_container_width=True, type="primary"):
-            for uf in uploaded_files:
-                if any(d["filename"] == uf.name for d in st.session_state.uploaded_docs):
-                    st.warning(f"Already indexed: {uf.name}")
-                    continue
-
-                with st.spinner(f"Indexing {uf.name}…"):
+        for uf in uploaded_files:
+            # Check if already uploaded
+            if not any(d["filename"] == uf.name for d in st.session_state.uploaded_docs):
+                if not any(p["name"] == uf.name for p in st.session_state.pending_files):
+                    st.session_state.pending_files.append({
+                        "name": uf.name,
+                        "content": uf.getvalue(),
+                        "size": len(uf.getvalue()),
+                    })
+    
+    # Show pending files
+    if st.session_state.pending_files:
+        st.markdown("##### Ready to index:")
+        for idx, pf in enumerate(st.session_state.pending_files):
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.markdown(f"📄 {pf['name']} ({(pf['size']/1024):.1f} KB)")
+            with col2:
+                if st.button("❌", key=f"remove_{idx}"):
+                    st.session_state.pending_files.pop(idx)
+                    st.rerun()
+        
+        if st.button("✅ Index Documents", use_container_width=True, type="primary"):
+            for pf in st.session_state.pending_files[:]:
+                with st.spinner(f"Indexing {pf['name']}…"):
                     try:
                         doc_info = index_document(
-                            uf.getvalue(),
-                            uf.name,
+                            pf["content"],
+                            pf["name"],
                             st.session_state.vector_store,
                             st.session_state.doc_registry
                         )
                         st.session_state.uploaded_docs.append(doc_info)
-                        st.success(f"✅ {uf.name} — {doc_info['num_chunks']} chunks")
+                        st.session_state.pending_files.remove(pf)
+                        st.success(f"✅ {pf['name']} indexed")
                     except Exception as e:
-                        st.error(f"❌ {uf.name}: {str(e)}")
+                        st.error(f"❌ {pf['name']}: {str(e)}")
+            st.rerun()
 
     st.divider()
     st.markdown("### Loaded Documents")
 
     if st.session_state.uploaded_docs:
-        for doc in st.session_state.uploaded_docs:
-            st.markdown(
-                f"<div class='doc-pill'>📄 <b>{doc['filename']}</b><br>"
-                f"<span style='font-size:11px;color:#5a6480'>"
-                f"{doc['num_pages']} pages · {doc['num_chunks']} chunks</span></div>",
-                unsafe_allow_html=True,
-            )
+        for idx, doc in enumerate(st.session_state.uploaded_docs):
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.markdown(f"📄 **{doc['filename']}**")
+                st.caption(f"{doc['num_pages']} pages · {doc['num_chunks']} chunks")
+            with col2:
+                if st.button("🗑️", key=f"remove_doc_{idx}"):
+                    # Note: Removing from vector store is complex; for simplicity, prompt reset
+                    st.warning("Use 'Reset All' to remove documents")
     else:
         st.info("No documents uploaded yet.")
 
@@ -403,7 +325,6 @@ with st.sidebar:
         if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())
-            # Clear memory service as well
             clear_session(st.session_state.session_id)
             st.rerun()
     with col2:
@@ -411,6 +332,7 @@ with st.sidebar:
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())
             st.session_state.uploaded_docs = []
+            st.session_state.pending_files = []
             st.session_state.vector_store = VectorStore(dim=384)
             st.session_state.doc_registry = {}
             clear_session(st.session_state.session_id)
@@ -424,7 +346,7 @@ with st.sidebar:
 
 st.markdown("""
 <div style='text-align:center;padding:10px 0 20px 0'>
-<h1 style='color:#760031'>🤖 DocQuery</h1>
+<h1 style='color:#1e293b'>🤖 DocQuery</h1>
 <p style='color:#64748b'>
 Conversational Document Intelligence Platform
 </p>
@@ -433,10 +355,10 @@ Conversational Document Intelligence Platform
 
 if not st.session_state.uploaded_docs:
     st.markdown("""
-    <div style='text-align:center; padding: 60px 20px; color: #4a5070;'>
+    <div style='text-align:center; padding: 60px 20px;'>
         <div style='font-size: 48px; margin-bottom: 16px;'>📄</div>
-        <div style='font-size: 18px; font-weight: 500; color: #6a7090;'>No documents loaded</div>
-        <div style='font-size: 14px; margin-top: 8px;'>Upload PDFs from the sidebar to begin chatting.</div>
+        <div style='font-size: 18px; font-weight: 500; color: #475569;'>No documents loaded</div>
+        <div style='font-size: 14px; margin-top: 8px; color: #64748b;'>Upload PDFs from the sidebar to begin chatting.</div>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
@@ -446,7 +368,6 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-        # Sources (only on assistant messages)
         if msg["role"] == "assistant" and msg.get("sources"):
             badges = "".join(
                 f"<span class='source-badge'>📄 {src}</span>"
@@ -454,32 +375,27 @@ for msg in st.session_state.messages:
             )
             st.markdown(f"<div style='margin-top:6px'>{badges}</div>", unsafe_allow_html=True)
 
-        # Rewritten query (subtle, only when it differs)
         if msg["role"] == "assistant" and msg.get("rewritten"):
             orig = msg.get("original_question", "")
             rw = msg["rewritten"]
             if orig and rw.lower().strip() != orig.lower().strip():
                 st.markdown(
-                    f"<div class='rewrite-note'>🔁 Interpreted as: <i>{rw}</i></div>",
+                    f"<div style='color:#64748b; font-size:12px; margin-top:8px'>🔁 Interpreted as: <i>{rw}</i></div>",
                     unsafe_allow_html=True,
                 )
 
 # Chat input
 if prompt := st.chat_input("Ask a question about your documents…"):
 
-    # Show user message immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Get answer from backend (now directly calling services)
     with st.chat_message("assistant"):
         with st.spinner("Searching documents…"):
             try:
-                # Get conversation history
                 history = get_last_n_turns(st.session_state.session_id, n=4)
                 
-                # Call QA engine directly
                 result = answer_question(
                     question=prompt,
                     vector_store=st.session_state.vector_store,
@@ -490,7 +406,6 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 sources = result["sources"]
                 rewritten = result["rewritten_query"]
                 
-                # Store in memory service
                 append_turn(
                     st.session_state.session_id,
                     prompt,
@@ -514,11 +429,10 @@ if prompt := st.chat_input("Ask a question about your documents…"):
 
         if rewritten and rewritten.lower().strip() != prompt.lower().strip():
             st.markdown(
-                f"<div class='rewrite-note'>🔁 Interpreted as: <i>{rewritten}</i></div>",
+                f"<div style='color:#64748b; font-size:12px; margin-top:8px'>🔁 Interpreted as: <i>{rewritten}</i></div>",
                 unsafe_allow_html=True,
             )
 
-    # Persist to session state
     st.session_state.messages.append({
         "role": "assistant",
         "content": answer,
