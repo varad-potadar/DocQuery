@@ -33,7 +33,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------
-# Custom CSS — clean, simple theme with guaranteed contrast
+# Custom CSS — clean, professional theme with proper contrast
 # ------------------------------------------------------------------
 
 st.markdown("""
@@ -44,88 +44,171 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* Main background */
+/* Main background - light theme */
 [data-testid="stAppViewContainer"] > .main {
-    background: #f8fafc;
+    background: linear-gradient(
+        135deg,
+        #f8fafc 0%,
+        #eef2ff 100%
+    );
 }
 
-/* Sidebar - clean slate */
+/* Sidebar - neutral dark but not too dark */
 [data-testid="stSidebar"] {
-    background: #1e293b;
+    background: #1a1a2e !important;
+    background: linear-gradient(180deg, #16213e 0%, #0f3460 100%) !important;
 }
 
-/* Sidebar text */
-[data-testid="stSidebar"],
+/* Sidebar text - ensure high contrast */
 [data-testid="stSidebar"] .stMarkdown,
 [data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stTextInput label,
+[data-testid="stSidebar"] .stSelectbox label,
 [data-testid="stSidebar"] .stCaption,
-[data-testid="stSidebar"] .stInfo p {
-    color: #f1f5f9 !important;
+[data-testid="stSidebar"] .caption {
+    color: #e2e8f0 !important;
 }
 
+/* Sidebar headers */
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] .stMarkdown h1,
+[data-testid="stSidebar"] .stMarkdown h2,
+[data-testid="stSidebar"] .stMarkdown h3 {
     color: #ffffff !important;
+    font-weight: 600 !important;
 }
 
-/* Document cards - always readable */
+/* Document cards - SOLID background with high contrast */
 .doc-pill {
-    background: #334155;
-    border-left: 4px solid #818cf8;
-    border-radius: 12px;
-    padding: 12px;
-    margin-bottom: 10px;
-    color: #f1f5f9;
+    background: #2d2d44 !important;
+    border-left: 4px solid #6366f1 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
 }
 
+.doc-pill,
+.doc-pill *,
 .doc-pill b,
-.doc-pill strong {
-    color: #ffffff;
-}
-
+.doc-pill strong,
 .doc-pill span {
-    color: #cbd5e1;
-}
-
-/* Uploaded file names */
-[data-testid="stSidebar"] .stFileUploaderFile {
-    background: #334155 !important;
     color: #f1f5f9 !important;
-    border-radius: 8px;
-    padding: 8px;
 }
 
-/* Headers in main */
+.doc-pill span[style*="color"] {
+    color: #cbd5e1 !important;
+}
+
+/* File uploader container in sidebar */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] {
+    background: transparent !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] p,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] label {
+    color: #e2e8f0 !important;
+}
+
+/* Uploaded file names - CRITICAL FIX */
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"],
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] > div,
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] span,
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] p,
+[data-testid="stSidebar"] .stFileUploaderFile,
+[data-testid="stSidebar"] .stFileUploaderFile span,
+[data-testid="stSidebar"] .uploadedFile {
+    color: #f1f5f9 !important;
+    background-color: #2d2d44 !important;
+}
+
+/* Make uploaded file names visible */
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {
+    background: #2d2d44 !important;
+    border-radius: 8px !important;
+    padding: 8px !important;
+    margin: 4px 0 !important;
+}
+
+/* Alert/info/warning messages in sidebar */
+[data-testid="stSidebar"] .stAlert {
+    background: #2d2d44 !important;
+    border-left-color: #6366f1 !important;
+}
+
+[data-testid="stSidebar"] .stAlert p {
+    color: #e2e8f0 !important;
+}
+
+/* Sidebar buttons */
+[data-testid="stSidebar"] .stButton button {
+    background: linear-gradient(135deg, #6366f1, #06b6d4) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    border: none !important;
+}
+
+[data-testid="stSidebar"] .stButton button:hover {
+    transform: translateY(-1px);
+    transition: all 0.3s ease;
+}
+
+/* Sidebar divider */
+[data-testid="stSidebar"] hr {
+    border-color: #334155 !important;
+    margin: 20px 0 !important;
+}
+
+/* Sidebar info text */
+[data-testid="stSidebar"] .stInfo,
+[data-testid="stSidebar"] .stInfo p {
+    color: #e2e8f0 !important;
+    background: #2d2d44 !important;
+}
+
+/* Headers in main area */
 h1, h2, h3 {
-    color: #1e293b;
-    font-weight: 700;
+    color: #312e81 !important;
+    font-weight: 700 !important;
 }
 
 /* Chat cards */
 [data-testid="stChatMessage"] {
-    background: #ffffff;
-    border-radius: 18px;
-    border: 1px solid #e2e8f0;
-    padding: 12px;
-    margin-bottom: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    background: rgba(255,255,255,0.95) !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(99,102,241,0.15) !important;
+    padding: 12px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.05);
 }
 
 /* Input box */
 [data-testid="stChatInput"] textarea {
-    background: #ffffff;
-    color: #1e293b;
-    border: 1px solid #cbd5e1;
-    border-radius: 14px;
+    background: white !important;
+    color: #111827 !important;
+    border: 1px solid #c7d2fe !important;
+    border-radius: 14px !important;
+}
+
+/* Main area buttons */
+.stButton button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    border: none !important;
+    background: linear-gradient(135deg, #6366f1, #06b6d4) !important;
+    color: white !important;
 }
 
 /* Source badges */
 .source-badge {
     display: inline-block;
     background: #e0e7ff;
-    color: #4338ca;
+    color: #4338ca !important;
+    border: 1px solid #c7d2fe;
     border-radius: 999px;
     padding: 4px 10px;
     font-size: 11px;
@@ -134,20 +217,42 @@ h1, h2, h3 {
     margin-top: 8px;
 }
 
-/* Rewrite note */
+/* Query rewrite */
 .rewrite-note {
-    color: #64748b;
+    color: #64748b !important;
     font-size: 12px;
     margin-top: 8px;
 }
 
-/* Buttons */
-.stButton button {
-    border-radius: 12px;
-    font-weight: 600;
-    background: linear-gradient(135deg, #6366f1, #06b6d4);
-    color: white;
-    border: none;
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.empty-state .icon {
+    font-size: 72px;
+}
+
+.empty-state .title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #312e81;
+}
+
+.empty-state .subtitle {
+    color: #64748b;
+}
+
+/* Success/warning/info messages */
+.stAlert {
+    border-radius: 12px !important;
+}
+
+/* Make sure all text in sidebar document list is visible */
+[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] .element-container p {
+    color: #e2e8f0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
