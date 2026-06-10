@@ -33,7 +33,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------
-# Custom CSS — clean, professional dark-accent theme
+# Custom CSS — clean, professional theme with proper contrast
 # ------------------------------------------------------------------
 
 st.markdown("""
@@ -53,17 +53,90 @@ html, body, [class*="css"] {
     );
 }
 
-/* Sidebar */
+/* Sidebar background - lighter for better contrast */
 [data-testid="stSidebar"] {
     background: linear-gradient(
         180deg,
-        #111827 0%,
-        #1f2937 100%
+        #1e293b 0%,
+        #0f172a 100%
     );
 }
 
-[data-testid="stSidebar"] * {
-    color: #f9fafb !important;
+/* Sidebar text - ensure good contrast */
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] .stMarkdown p,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stTextInput label,
+[data-testid="stSidebar"] .stSelectbox label {
+    color: #e2e8f0 !important;
+}
+
+/* Sidebar headers */
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] .stMarkdown h1,
+[data-testid="stSidebar"] .stMarkdown h2,
+[data-testid="stSidebar"] .stMarkdown h3 {
+    color: #f1f5f9 !important;
+}
+
+/* Sidebar caption */
+[data-testid="stSidebar"] .stCaption,
+[data-testid="stSidebar"] .caption {
+    color: #94a3b8 !important;
+}
+
+/* Document cards in sidebar - FIXED for visibility */
+.doc-pill {
+    background: #334155 !important;
+    border-left: 4px solid #818cf8 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2) !important;
+    color: #f1f5f9 !important;
+}
+
+.doc-pill b,
+.doc-pill strong {
+    color: #f1f5f9 !important;
+}
+
+.doc-pill span {
+    color: #cbd5e1 !important;
+}
+
+/* File uploader text in sidebar */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] p,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] label {
+    color: #e2e8f0 !important;
+}
+
+/* Uploaded file names in sidebar */
+[data-testid="stSidebar"] .stFileUploader [data-testid="stFileUploaderFile"],
+[data-testid="stSidebar"] .stFileUploader [data-testid="stFileUploaderFile"] span,
+[data-testid="stSidebar"] .stFileUploader [data-testid="stFileUploaderFile"] p {
+    color: #e2e8f0 !important;
+    background: #334155 !important;
+}
+
+/* Sidebar buttons */
+[data-testid="stSidebar"] .stButton button {
+    background: linear-gradient(135deg, #6366f1, #06b6d4) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+}
+
+/* Sidebar info/warning/success messages */
+[data-testid="stSidebar"] .stAlert {
+    background: #334155 !important;
+    color: #e2e8f0 !important;
+}
+
+[data-testid="stSidebar"] .stAlert p {
+    color: #e2e8f0 !important;
 }
 
 /* Headers */
@@ -90,7 +163,7 @@ h1, h2, h3 {
     border-radius: 14px !important;
 }
 
-/* Buttons */
+/* Main area buttons */
 .stButton button {
     border-radius: 12px !important;
     font-weight: 600 !important;
@@ -101,17 +174,6 @@ h1, h2, h3 {
         #06b6d4
     ) !important;
     color: white !important;
-}
-
-/* Document cards */
-.doc-pill {
-    background: white;
-    border-left: 4px solid #6366f1;
-    border-radius: 12px;
-    padding: 12px;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-    color: #111827 !important;
 }
 
 /* Source badges */
@@ -154,9 +216,18 @@ h1, h2, h3 {
 .empty-state .subtitle {
     color: #64748b;
 }
+
+/* Success/warning/info messages in main area */
+.stAlert {
+    border-radius: 12px !important;
+}
+
+/* Divider in sidebar */
+[data-testid="stSidebar"] hr {
+    border-color: #334155 !important;
+}
 </style>
 """, unsafe_allow_html=True)
-
 # ------------------------------------------------------------------
 # Helper functions for document processing
 # ------------------------------------------------------------------
