@@ -33,7 +33,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------
-# Custom CSS — clean, professional theme with proper contrast
+# Custom CSS — clean, simple theme with guaranteed contrast
 # ------------------------------------------------------------------
 
 st.markdown("""
@@ -46,142 +46,86 @@ html, body, [class*="css"] {
 
 /* Main background */
 [data-testid="stAppViewContainer"] > .main {
-    background: linear-gradient(
-        135deg,
-        #f8fafc 0%,
-        #eef2ff 100%
-    );
+    background: #f8fafc;
 }
 
-/* Sidebar background - lighter for better contrast */
+/* Sidebar - clean slate */
 [data-testid="stSidebar"] {
-    background: linear-gradient(
-        180deg,
-        #1e293b 0%,
-        #0f172a 100%
-    );
+    background: #1e293b;
 }
 
-/* Sidebar text - ensure good contrast */
+/* Sidebar text */
+[data-testid="stSidebar"],
 [data-testid="stSidebar"] .stMarkdown,
 [data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stTextInput label,
-[data-testid="stSidebar"] .stSelectbox label {
-    color: #e2e8f0 !important;
+[data-testid="stSidebar"] .stCaption,
+[data-testid="stSidebar"] .stInfo p {
+    color: #f1f5f9 !important;
 }
 
-/* Sidebar headers */
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] .stMarkdown h1,
-[data-testid="stSidebar"] .stMarkdown h2,
-[data-testid="stSidebar"] .stMarkdown h3 {
-    color: #f1f5f9 !important;
+[data-testid="stSidebar"] h3 {
+    color: #ffffff !important;
 }
 
-/* Sidebar caption */
-[data-testid="stSidebar"] .stCaption,
-[data-testid="stSidebar"] .caption {
-    color: #94a3b8 !important;
-}
-
-/* Document cards in sidebar - FIXED for visibility */
+/* Document cards - always readable */
 .doc-pill {
-    background: #334155 !important;
-    border-left: 4px solid #818cf8 !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
-    margin-bottom: 10px !important;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.2) !important;
-    color: #f1f5f9 !important;
+    background: #334155;
+    border-left: 4px solid #818cf8;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    color: #f1f5f9;
 }
 
 .doc-pill b,
 .doc-pill strong {
-    color: #f1f5f9 !important;
+    color: #ffffff;
 }
 
 .doc-pill span {
-    color: #cbd5e1 !important;
+    color: #cbd5e1;
 }
 
-/* File uploader text in sidebar */
-[data-testid="stSidebar"] [data-testid="stFileUploader"] p,
-[data-testid="stSidebar"] [data-testid="stFileUploader"] label {
-    color: #e2e8f0 !important;
-}
-
-/* Uploaded file names in sidebar */
-[data-testid="stSidebar"] .stFileUploader [data-testid="stFileUploaderFile"],
-[data-testid="stSidebar"] .stFileUploader [data-testid="stFileUploaderFile"] span,
-[data-testid="stSidebar"] .stFileUploader [data-testid="stFileUploaderFile"] p {
-    color: #e2e8f0 !important;
+/* Uploaded file names */
+[data-testid="stSidebar"] .stFileUploaderFile {
     background: #334155 !important;
+    color: #f1f5f9 !important;
+    border-radius: 8px;
+    padding: 8px;
 }
 
-/* Sidebar buttons */
-[data-testid="stSidebar"] .stButton button {
-    background: linear-gradient(135deg, #6366f1, #06b6d4) !important;
-    color: white !important;
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-}
-
-/* Sidebar info/warning/success messages */
-[data-testid="stSidebar"] .stAlert {
-    background: #334155 !important;
-    color: #e2e8f0 !important;
-}
-
-[data-testid="stSidebar"] .stAlert p {
-    color: #e2e8f0 !important;
-}
-
-/* Headers */
+/* Headers in main */
 h1, h2, h3 {
-    color: #312e81 !important;
-    font-weight: 700 !important;
+    color: #1e293b;
+    font-weight: 700;
 }
 
 /* Chat cards */
 [data-testid="stChatMessage"] {
-    background: rgba(255,255,255,0.85) !important;
-    border-radius: 18px !important;
-    border: 1px solid rgba(99,102,241,0.12) !important;
-    padding: 12px !important;
-    margin-bottom: 12px !important;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+    background: #ffffff;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 /* Input box */
 [data-testid="stChatInput"] textarea {
-    background: white !important;
-    color: #111827 !important;
-    border: 1px solid #c7d2fe !important;
-    border-radius: 14px !important;
-}
-
-/* Main area buttons */
-.stButton button {
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-    border: none !important;
-    background: linear-gradient(
-        135deg,
-        #6366f1,
-        #06b6d4
-    ) !important;
-    color: white !important;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
 }
 
 /* Source badges */
 .source-badge {
     display: inline-block;
     background: #e0e7ff;
-    color: #4338ca !important;
-    border: 1px solid #c7d2fe;
+    color: #4338ca;
     border-radius: 999px;
     padding: 4px 10px;
     font-size: 11px;
@@ -190,41 +134,20 @@ h1, h2, h3 {
     margin-top: 8px;
 }
 
-/* Query rewrite */
+/* Rewrite note */
 .rewrite-note {
-    color: #64748b !important;
+    color: #64748b;
     font-size: 12px;
     margin-top: 8px;
 }
 
-/* Empty state */
-.empty-state {
-    text-align: center;
-    padding: 80px 20px;
-}
-
-.empty-state .icon {
-    font-size: 72px;
-}
-
-.empty-state .title {
-    font-size: 28px;
-    font-weight: 700;
-    color: #312e81;
-}
-
-.empty-state .subtitle {
-    color: #64748b;
-}
-
-/* Success/warning/info messages in main area */
-.stAlert {
-    border-radius: 12px !important;
-}
-
-/* Divider in sidebar */
-[data-testid="stSidebar"] hr {
-    border-color: #334155 !important;
+/* Buttons */
+.stButton button {
+    border-radius: 12px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #6366f1, #06b6d4);
+    color: white;
+    border: none;
 }
 </style>
 """, unsafe_allow_html=True)
