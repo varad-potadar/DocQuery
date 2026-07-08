@@ -25,7 +25,7 @@ from services.memory import get_history, append_turn, clear_session, get_last_n_
 
 st.set_page_config(
     page_title="DocQuery",
-    page_icon="📄",
+    page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded",
 )
