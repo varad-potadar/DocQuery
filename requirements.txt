@@ -1,0 +1,25 @@
+# NOTE: OCR (for scanned PDFs and photographed/screenshotted documents)
+# needs the Tesseract OCR engine as a SYSTEM package — this is separate
+# from the `pytesseract` Python wrapper below and can't be installed via
+# pip. See README.md for the one-line install command per OS.
+#   Debian/Ubuntu:  sudo apt-get install tesseract-ocr
+#   macOS (brew):   brew install tesseract
+#   Windows:        https://github.com/UB-Mannheim/tesseract/wiki
+# Streamlit Community Cloud reads this automatically from packages.txt
+# in this repo, so no extra setup is needed there.
+
+fastapi
+uvicorn[standard]
+streamlit
+requests
+python-dotenv
+PyMuPDF
+sentence-transformers
+faiss-cpu
+groq
+python-multipart
+rank-bm25
+python-docx
+beautifulsoup4
+pytesseract
+Pillow
