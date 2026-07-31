@@ -21,7 +21,7 @@ from typing import List, Dict
 
 _client = None
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 
 def _get_client() -> genai.Client:
