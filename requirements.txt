@@ -16,7 +16,7 @@ python-dotenv
 PyMuPDF
 sentence-transformers
 faiss-cpu
-groq
+google-genai
 python-multipart
 rank-bm25
 python-docx
