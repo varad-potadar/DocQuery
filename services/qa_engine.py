@@ -22,7 +22,7 @@ from services.query_rewriter import rewrite_query
 
 _client = None
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 # ------------------------------------------------------------------
 # Token budget
