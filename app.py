@@ -14,9 +14,11 @@ main.py (the FastAPI backend), so both stay in sync.
 """
 
 import uuid
+import os
 import streamlit as st
 from typing import List, Dict
-
+# Map the Streamlit secret directly to the environment variable
+os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
 # Import all services directly
 from services.vector_store import VectorStore
 from services.qa_engine import answer_question
