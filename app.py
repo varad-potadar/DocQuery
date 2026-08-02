@@ -58,32 +58,37 @@ st.markdown("""
    .streamlit/config.toml, so that default stays intact).
    ================================================================== */
 :root {
-    --bg:            #F3F5F9;
+    /* Main Layout */
+    --bg:            #F4F6F9;
     --surface:       #FFFFFF;
-    --border:        #E2E6ED;
-    --text:          #1E2433;
-    --text-muted:    #5B6478;
+    --border:        #CDD5E1; /* Darkened for better structural definition */
+    --text:          #0F141F; /* Darkened to near-black for crisp reading */
+    --text-muted:    #475266; /* Enhanced contrast for secondary text */
 
-    --sidebar-bg:    #EAEEF5;
-    --sidebar-text:  #1E2433;
+    /* Light Sidebar Fix */
+    --sidebar-bg:    #E3E8F0; /* Clean, distinct light gray-blue background */
+    --sidebar-text:  #0F141F; /* Dark text to match the main content */
 
-    --ink:           #26314D;
-    --ink-strong:    #16203A;
-    --on-ink:        #F3F5F9;
+    /* Primary Actions / Ink Elements */
+    --ink:           #1A2438; 
+    --ink-strong:    #0D1527; 
+    --on-ink:        #FFFFFF; /* Pure white for maximum readability on dark buttons */
 
-    --amber:         #A5720F;
-    --amber-bg:      #FBF0DC;
-    --amber-border:  #E9C783;
+    /* Status Accents (Optimized for light backgrounds) */
+    --amber:         #875902; /* Darker amber for legible text */
+    --amber-bg:      #FEF6E9; 
+    --amber-border:  #E4C283;
 
-    --sage:          #3F7355;
-    --sage-bg:       #E4EFE7;
-    --sage-border:   #B7D6C2;
+    --sage:          #2A593D; /* Darker green for legible text */
+    --sage-bg:       #EBF5EE; 
+    --sage-border:   #B3D5BE;
 
-    --danger:        #AE3C2F;
-    --danger-bg:     #FBEAE7;
-    --danger-border: #EFC3BB;
+    --danger:        #962419; /* Darker red for legible text */
+    --danger-bg:     #FDF2F0; 
+    --danger-border: #ECC1BB;
 
-    --shadow: 0 1px 2px rgba(23,27,46,0.05), 0 4px 14px rgba(23,27,46,0.06);
+    /* Depth */
+    --shadow: 0 1px 3px rgba(15,20,31,0.08), 0 4px 16px rgba(15,20,31,0.08);
 }
 
 @media (prefers-color-scheme: dark) {
