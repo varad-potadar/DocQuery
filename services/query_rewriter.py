@@ -88,7 +88,7 @@ Rewritten question:"""
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 max_output_tokens=200,
-                # gemini-2.5-flash "thinks" before answering by default, and
+                # gemini-3.6-flash "thinks" before answering by default, and
                 # that invisible reasoning is billed against this same
                 # max_output_tokens ceiling -- for a short mechanical
                 # rewrite, thinking adds nothing and was silently eating
