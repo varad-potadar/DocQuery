@@ -70,8 +70,8 @@ st.markdown("""
     --sidebar-text:  #0F141F; /* Dark text to match the main content */
 
     /* Primary Actions / Ink Elements */
-    --ink:           #1A2438; 
-    --ink-strong:    #0D1527; 
+    --ink:           #FFFFFF; 
+    --ink-strong:    #FFFFFF; 
     --on-ink:        #FFFFFF; /* Pure white for maximum readability on dark buttons */
 
     /* Status Accents (Optimized for light backgrounds) */
