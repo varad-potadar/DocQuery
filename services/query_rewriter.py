@@ -1,0 +1,112 @@
+"""
+services/query_rewriter.py  (NEW FILE)
+
+Rewrites a user question to be self-contained, using recent conversation
+history to resolve pronouns and references.
+
+Example:
+    History:  "What method is proposed?" → "CNN-based approach"
+    Question: "What are its limitations?"
+    Rewritten: "What are the limitations of the CNN-based approach?"
+
+Uses Gemini with a lightweight, fast model. Falls back to the original
+question if the call fails or the question is already self-contained.
+"""
+
+import os
+import re
+from google import genai
+from google.genai import types
+from typing import List, Dict
+
+_client = None
+
+GEMINI_MODEL = "gemini-3.6-flash"
+# Kept in sync with qa_engine.py -- see the comment there for why.
+
+
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    return _client
+
+
+def _needs_rewriting(question: str, history: List[Dict]) -> bool:
+    """
+    Quick heuristic: only rewrite if there IS prior history AND the question
+    contains likely referential expressions.
+    """
+    if not history:
+        return False
+
+    q = question.lower()
+    referential_signals = [
+        r"\bit\b", r"\bits\b", r"\bthey\b", r"\btheir\b", r"\bthis\b",
+        r"\bthat\b", r"\bthese\b", r"\bthose\b", r"\bhe\b", r"\bshe\b",
+        r"\bthe method\b", r"\bthe approach\b", r"\bthe system\b",
+        r"\bthe model\b", r"\bthe paper\b", r"\bthe document\b",
+        r"\bsame\b", r"\babove\b", r"\bmentioned\b", r"\bprevious\b",
+    ]
+    return any(re.search(pat, q) for pat in referential_signals)
+
+
+def rewrite_query(question: str, history: List[Dict]) -> str:
+    """
+    Returns a rewritten, self-contained version of the question.
+    If rewriting is not needed or fails, returns original question unchanged.
+    """
+    if not _needs_rewriting(question, history):
+        return question
+
+    # Build a short history summary for the prompt (last 3 turns)
+    recent = history[-6:]
+    history_text = "\n".join(
+        f"{msg['role'].capitalize()}: {msg['content']}"
+        for msg in recent
+    )
+
+    prompt = f"""You are a question rewriter. Your only job is to rewrite the FOLLOW-UP QUESTION to be fully self-contained, resolving any pronouns or references using the conversation history.
+
+Rules:
+- Output ONLY the rewritten question, nothing else.
+- Do NOT answer the question.
+- If the question is already self-contained, output it unchanged.
+- Keep the rewritten question concise.
+
+Conversation history:
+{history_text}
+
+Follow-up question: {question}
+
+Rewritten question:"""
+
+    try:
+        client = _get_client()
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=300,
+                # gemini-3.6-flash controls thinking with thinking_level, not
+                # the older numeric thinking_budget (mixing them is a hard
+                # error on Gemini 3+ models) -- see qa_engine.py's LLM call
+                # for the full explanation. "minimal" is the lowest this
+                # model goes; thinking can't be fully disabled the way
+                # gemini-2.5-flash's thinking_budget=0 could, which is also
+                # why max_output_tokens has a bit more headroom than the
+                # ~100 tokens a short rewrite alone would need.
+                thinking_config=types.ThinkingConfig(thinking_level="minimal"),
+            ),
+        )
+        rewritten = (response.text or "").strip()
+
+        # Sanity check: result should be a question, not an answer
+        if len(rewritten) > 10 and len(rewritten) < 300:
+            return rewritten
+        return question
+
+    except Exception as e:
+        print(f"[query_rewriter] Rewrite failed: {e}. Using original.")
+        return question
