@@ -1,35 +1,32 @@
 """
 services/reranker.py
 
-Cross-encoder reranking. vector_store.search() already casts a wide net
-(the k=12/20 split in qa_engine, widened further by search()'s own
-fetch_k = k * 4); a cross-encoder scores the query and each candidate
-chunk together in a single forward pass, which is a meaningfully better
-relevance judgment than the fused dense+BM25 rank used to build that
-candidate set -- at the cost of being too slow to run over a whole
-corpus, which is exactly why it only runs on the shortlist here rather
-than replacing search() as the primary retrieval step.
+Cross-encoder reranking. Hybrid retrieval (dense + BM25) is fast but
+scores query and chunk separately, then compares vectors -- a
+cross-encoder reads the query and chunk together in one pass, which is
+slower but noticeably more accurate at judging "is this chunk actually
+relevant to this question."
 
-Reuses chunk["index_text"] when present -- the same doc-title +
-heading-prefixed text used for embedding/BM25 (see
-chunker.contextual_text) -- falling back to the clean chunk["text"] for
-any chunk that predates that field. Returns a new, shorter list of new
-dicts (never mutates the input), each carrying a "rerank_score" field --
-the raw cross-encoder score, used by qa_engine to derive a rough
-confidence label.
+This module only RE-ORDERS what retrieval already found; it never drops
+a chunk. That matters because vector_store.search()'s small-corpus mode
+deliberately returns every chunk so nothing is excluded before the LLM
+sees it (see that module's docstring) -- the token-budget trim in
+qa_engine.py is still the only place a chunk actually gets cut, now
+acting on a much better-ordered list.
+
+Model: cross-encoder/ms-marco-MiniLM-L-6-v2 -- small (~80MB), fast on
+CPU, free, and light enough to fit alongside everything else already
+loaded on a resource-capped host like Streamlit Community Cloud's free
+tier (~1GB RAM). If you're hosting somewhere with more headroom and
+want higher accuracy, BAAI/bge-reranker-v2-m3 scores better -- just
+swap RERANKER_MODEL_NAME (it's a larger download and slower per call).
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from sentence_transformers import CrossEncoder
 
-# ~90MB, CPU-friendly -- fits alongside the embedding model within
-# Streamlit Community Cloud's free-tier RAM. BAAI/bge-reranker-v2-m3
-# scores meaningfully higher if this ever moves to a host with more
-# headroom -- same .predict() interface, just swap the model name below.
 RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-DEFAULT_TOP_K = 8
 
 _model = None
 
@@ -41,13 +38,40 @@ def _get_model() -> CrossEncoder:
     return _model
 
 
-def rerank_chunks(query: str, chunks: List[Dict], top_k: int = DEFAULT_TOP_K) -> List[Dict]:
+def rerank(query: str, chunks: List[Dict], top_k: Optional[int] = None) -> List[Dict]:
+    """
+    Re-scores `chunks` against `query` with a cross-encoder and returns
+    them re-ordered, most relevant first.
+
+    Adds a "rerank_score" field to each returned chunk. The retriever's
+    own "score" field (dense/BM25/RRF, whatever it was) is left alone,
+    in case it's useful for debugging.
+
+    top_k: pass a number to also truncate to the best N chunks. Pass
+    None (the default) to reorder only -- this is what qa_engine.py
+    uses, so token-budget trimming downstream stays the single place
+    that removes a chunk from the final context.
+
+    Falls back to returning `chunks` in their original order if the
+    model can't be loaded or scoring fails (e.g. no network on first
+    run to fetch the model), so a broken/missing dependency degrades to
+    "no reranking" rather than breaking the app.
+    """
     if not chunks:
         return chunks
 
-    model = _get_model()
-    pairs = [(query, c.get("index_text", c["text"])) for c in chunks]
-    scores = model.predict(pairs)
+    try:
+        model = _get_model()
+        pairs = [(query, c["text"]) for c in chunks]
+        scores = model.predict(pairs)
+    except Exception as e:
+        print(f"[reranker] Failed ({e}); falling back to retrieval order.")
+        return chunks[:top_k] if top_k is not None else chunks
 
-    ranked = sorted(zip(chunks, scores), key=lambda pair: pair[1], reverse=True)
-    return [{**c, "rerank_score": float(score)} for c, score in ranked[:top_k]]
+    scored = [
+        {**chunk, "rerank_score": float(score)}
+        for chunk, score in zip(chunks, scores)
+    ]
+    scored.sort(key=lambda c: c["rerank_score"], reverse=True)
+
+    return scored[:top_k] if top_k is not None else scored
