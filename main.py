@@ -75,7 +75,6 @@ class AskResponse(BaseModel):
     answer: str
     sources: List[str]
     rewritten_query: str
-    confidence: str
 
 
 class RestorePayload(BaseModel):
@@ -155,7 +154,6 @@ def ask(payload: QuestionPayload):
         answer=result["answer"],
         sources=result["sources"],
         rewritten_query=result["rewritten_query"],
-        confidence=result["confidence"],
     )
 
 
