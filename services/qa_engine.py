@@ -4,14 +4,14 @@ services/qa_engine.py
 Redesigned QA engine:
   1. Rewrite question to be self-contained (resolves pronouns / references)
   2. Embed rewritten query
-  3. Hybrid retrieval (semantic + keyword) from vector store
-  4. Rerank the retrieved chunks with a cross-encoder
+  3. Hybrid retrieval (semantic + keyword) from vector store, fetched
+     wider than needed so reranking (next) has real candidates to pick from
+  4. Cross-encoder rerank -- reorders by true relevance, drops nothing
   5. Build context with source attribution
   6. Call Gemini LLM with grounding prompt
-  7. Return answer + sources + a rough confidence label
+  7. Return answer + sources
 """
 
-import math
 import os
 import re
 import time
@@ -21,53 +21,53 @@ from typing import List, Dict, Tuple
 
 from services.embedder import embed_chunks
 from services.query_rewriter import rewrite_query
-from services.reranker import rerank_chunks
+from services.reranker import rerank
 
 _client = None
 
 GEMINI_MODEL = "gemini-3.6-flash"
+# Was gemini-2.5-flash until Google pulled access to it ahead of its
+# official Oct 16, 2026 shutdown date; gemini-3.6-flash is the current
+# stable Flash-tier model as of Aug 2026. If this one also stops
+# working later, check https://ai.google.dev/gemini-api/docs/deprecations
+# and swap the string here (and in query_rewriter.py) -- Google has
+# been retiring Flash models roughly every few months this year.
 
 # ------------------------------------------------------------------
 # Token budget
 # ------------------------------------------------------------------
-# Gemini's free tier for gemini-2.5-flash caps requests well under a
-# generous tokens/minute limit, but we still stay under a conservative
-# budget so a single call never gets rejected with a rate-limit error.
+# These were sized for Groq's free-tier limit (6,000 TPM total) from
+# before this app switched to Gemini -- that's the main reason answers
+# were getting cut off mid-sentence: RESPONSE_TOKENS=800 was a hard
+# ceiling on the model's OUTPUT, not just a rate-limit safety margin.
+#
+# There's a second, less obvious way that same ceiling got hit even
+# earlier than 800 tokens of visible text: Gemini's Flash models
+# "think" before answering by default, and that invisible reasoning is
+# billed against the SAME max_output_tokens ceiling as the visible
+# answer -- so the budget could be gone before the model writes a word
+# the user sees. The LLM call below sets thinking as low as this model
+# allows (see its comment) since this is grounded extraction, not the
+# kind of task that benefits from extended reasoning -- RESPONSE_TOKENS
+# is still sized generously here as a second layer of safety, since
+# gemini-3.6-flash (unlike gemini-2.5-flash) can't turn thinking off
+# entirely -- "minimal" is the lowest setting it has, not "off".
+#
+# Gemini's free tier is far larger than Groq's was (six figures of
+# tokens/minute, a 1M-token context window), so there's no rate-limit
+# reason to keep these numbers small -- they're chosen for a complete
+# answer and a generous retrieval context, not because Gemini would
+# reject anything bigger.
 #
 # ~4 chars/token is a standard rough estimate for English text and is
 # good enough for budgeting purposes (we don't need exact tokenization).
-MODEL_TPM_LIMIT = 6000
-RESPONSE_TOKENS = 800          # max_tokens we request back
-SAFETY_MARGIN = 400            # buffer for system prompt + instructions + rounding
-MAX_CONTEXT_TOKENS = MODEL_TPM_LIMIT - RESPONSE_TOKENS - SAFETY_MARGIN  # ~4800
+RESPONSE_TOKENS = 4096      # max output tokens -- room for a full answer
+MAX_CONTEXT_TOKENS = 12000  # retrieved-chunk budget for the prompt
 CHARS_PER_TOKEN = 4
-
-NOT_FOUND_SENTINEL = "This information was not found in the uploaded documents."
-
-# Rough buckets for the confidence label -- ms-marco-MiniLM isn't trained
-# as a calibrated classifier, so these thresholds (applied to a sigmoid of
-# its raw cross-encoder score) are a useful signal, not a real probability.
-CONFIDENCE_HIGH_THRESHOLD = 0.85
-CONFIDENCE_MEDIUM_THRESHOLD = 0.5
 
 
 def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // CHARS_PER_TOKEN)
-
-
-def _confidence_label(top_rerank_score: float) -> str:
-    """
-    Turns the top reranked chunk's raw cross-encoder score into a rough
-    "high" / "medium" / "low" label via a sigmoid + thresholds. This is a
-    heuristic to flag "the best evidence we found was weak", not a
-    calibrated probability -- treat it as a hint, not a guarantee.
-    """
-    p = 1.0 / (1.0 + math.exp(-top_rerank_score))
-    if p >= CONFIDENCE_HIGH_THRESHOLD:
-        return "high"
-    if p >= CONFIDENCE_MEDIUM_THRESHOLD:
-        return "medium"
-    return "low"
 
 
 def _get_client() -> genai.Client:
@@ -159,9 +159,6 @@ def answer_question(
             "answer":          str,
             "sources":         List[str],   # doc_ids used
             "rewritten_query": str,         # for transparency / debugging
-            "confidence":      str,         # "high" / "medium" / "low" -- see
-                                             # _confidence_label(); heuristic, not
-                                             # a calibrated probability
         }
     """
     if history is None:
@@ -181,39 +178,38 @@ def answer_question(
                       "limitation", "challenge", "problem", "contribution",
                       "method", "approach", "compare", "difference",
                       "future", "conclusion", "finding"]
-    k = 20 if any(kw in q_lower for kw in broad_keywords) else 12
+    final_k = 20 if any(kw in q_lower for kw in broad_keywords) else 12
+    # Fetch wider than final_k so reranking below has real candidates to
+    # choose from instead of just whatever dense+BM25 fusion ranked first.
+    # (No effect on vector_store's small-corpus mode -- that path already
+    # returns every chunk regardless of k.)
+    fetch_k = min(final_k * 3, 60)
 
     # 4. Hybrid retrieval
-    retrieved = vector_store.search(q_embedding, query_text=rewritten, k=k)
+    retrieved = vector_store.search(q_embedding, query_text=rewritten, k=fetch_k)
 
     if not retrieved:
         return {
             "answer": "No documents have been indexed yet. Please upload a document first.",
             "sources": [],
             "rewritten_query": rewritten,
-            "confidence": "low",
         }
 
     print(f"[qa_engine] Retrieved {len(retrieved)} chunks from: "
           f"{list(dict.fromkeys(c['doc_id'] for c in retrieved))}")
 
-    # 4b. Rerank: a cross-encoder scores each retrieved chunk jointly
-    #     against the query -- a meaningfully better relevance signal
-    #     than the fused dense+BM25 rank used to build the candidate set
-    #     above -- and keeps only the strongest few (rerank_chunks
-    #     defaults to the top 8).
-    reranked = rerank_chunks(rewritten, retrieved)
-    print(f"[qa_engine] Reranked {len(retrieved)} -> {len(reranked)} chunks")
-
-    confidence = _confidence_label(reranked[0].get("rerank_score", 0.0))
+    # 4b. Cross-encoder rerank -- reorders by true relevance to the
+    #     (rewritten) query. Reorders only (top_k=None); the token-budget
+    #     trim below is still what actually drops a chunk.
+    retrieved = rerank(rewritten, retrieved)
 
     # 5. Build context, capped to a token budget so the request can never
     #    exceed the LLM provider's tokens-per-minute limit regardless of
-    #    how many chunks were retrieved. `reranked` is relevance-ordered,
+    #    how many chunks were retrieved. `retrieved` is relevance-ordered,
     #    so trimming drops the least-relevant chunks first.
     history_reserve = _estimate_tokens(_build_history_text(history[-4:])) if history else 0
     context_budget = max(500, MAX_CONTEXT_TOKENS - history_reserve)
-    context, sources, chunks_used = _build_context_block(reranked, max_tokens=context_budget)
+    context, sources, chunks_used = _build_context_block(retrieved, max_tokens=context_budget)
 
     if chunks_used < len(retrieved):
         print(f"[qa_engine] Context budget reached: using {chunks_used}/{len(retrieved)} "
@@ -232,7 +228,7 @@ Rules:
 - Answer ONLY from the context. Do not use outside knowledge.
 - If the context contains the answer, answer confidently and completely.
 - If information spans multiple sources, combine it and mention the sources by name.
-- If the answer is genuinely not in the context, say exactly: "{NOT_FOUND_SENTINEL}"
+- If the answer is genuinely not in the context, say exactly: "This information was not found in the uploaded documents."
 - Use conversation history only to understand what pronouns like "it", "they", "its" refer to.
 - Do not repeat the question back.
 - Be direct. Start with the answer.
@@ -265,9 +261,47 @@ Answer:"""
                     ),
                     temperature=0.0,
                     max_output_tokens=RESPONSE_TOKENS,
+                    # gemini-3.6-flash controls thinking with thinking_level,
+                    # not the older numeric thinking_budget -- mixing the
+                    # two in one request is a hard error on Gemini 3+
+                    # models. This is grounded extraction/synthesis, not
+                    # the kind of multi-step problem heavier thinking is
+                    # for, so it's set to the lowest level this model
+                    # supports. Unlike gemini-2.5-flash's thinking_budget=0,
+                    # there's no way to fully disable thinking on Gemini 3
+                    # Flash models -- "minimal" is the floor.
+                    thinking_config=types.ThinkingConfig(thinking_level="minimal"),
                 ),
             )
-            answer = response.text.strip()
+
+            candidate = response.candidates[0] if response.candidates else None
+            finish_reason = (
+                candidate.finish_reason.name
+                if candidate and candidate.finish_reason else None
+            )
+            try:
+                answer = (response.text or "").strip()
+            except Exception:
+                # The SDK can raise here instead of returning "" when a
+                # response has no text part at all -- seen when even
+                # "thinking" (before it's disabled, or on a retry with a
+                # different model) ate the whole token budget.
+                answer = ""
+
+            if finish_reason == "MAX_TOKENS":
+                print(f"[qa_engine] WARNING: hit MAX_TOKENS at RESPONSE_TOKENS="
+                      f"{RESPONSE_TOKENS} with thinking at 'minimal' -- this "
+                      f"question's answer needs more room than that.")
+                answer = (
+                    answer + "\n\n*(This answer was cut short by a length "
+                    "limit -- ask me to continue.)*"
+                ) if answer else (
+                    "The model ran out of room before it could write an "
+                    "answer. Try asking a narrower or more specific question."
+                )
+            elif not answer:
+                answer = f"The model returned an empty response (finish_reason: {finish_reason})."
+
             break
 
         except Exception as e:
@@ -282,15 +316,10 @@ Answer:"""
             print(f"[qa_engine] ERROR: {e}")
             break
 
-    if answer.strip() == NOT_FOUND_SENTINEL:
-        confidence = "low"
-
     print(f"[qa_engine] Answer (first 200 chars): {answer[:200]}")
-    print(f"[qa_engine] Confidence: {confidence}")
 
     return {
         "answer": answer,
         "sources": sources,
         "rewritten_query": rewritten,
-        "confidence": confidence,
     }
