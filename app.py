@@ -58,37 +58,32 @@ st.markdown("""
    .streamlit/config.toml, so that default stays intact).
    ================================================================== */
 :root {
-    /* Main Layout */
-    --bg:            #F4F6F9;
+    --bg:            #F3F5F9;
     --surface:       #FFFFFF;
-    --border:        #CDD5E1; /* Darkened for better structural definition */
-    --text:          #0F141F; /* Darkened to near-black for crisp reading */
-    --text-muted:    #475266; /* Enhanced contrast for secondary text */
+    --border:        #E2E6ED;
+    --text:          #1E2433;
+    --text-muted:    #5B6478;
 
-    /* Light Sidebar Fix */
-    --sidebar-bg:    #E3E8F0; /* Clean, distinct light gray-blue background */
-    --sidebar-text:  #0F141F; /* Dark text to match the main content */
+    --sidebar-bg:    #EAEEF5;
+    --sidebar-text:  #1E2433;
 
-    /* Primary Actions / Ink Elements */
-    --ink:           #FFFFFF; 
-    --ink-strong:    #FFFFFF; 
-    --on-ink:        #FFFFFF; /* Pure white for maximum readability on dark buttons */
+    --ink:           #26314D;
+    --ink-strong:    #16203A;
+    --on-ink:        #F3F5F9;
 
-    /* Status Accents (Optimized for light backgrounds) */
-    --amber:         #875902; /* Darker amber for legible text */
-    --amber-bg:      #FEF6E9; 
-    --amber-border:  #E4C283;
+    --amber:         #A5720F;
+    --amber-bg:      #FBF0DC;
+    --amber-border:  #E9C783;
 
-    --sage:          #2A593D; /* Darker green for legible text */
-    --sage-bg:       #EBF5EE; 
-    --sage-border:   #B3D5BE;
+    --sage:          #3F7355;
+    --sage-bg:       #E4EFE7;
+    --sage-border:   #B7D6C2;
 
-    --danger:        #962419; /* Darker red for legible text */
-    --danger-bg:     #FDF2F0; 
-    --danger-border: #ECC1BB;
+    --danger:        #AE3C2F;
+    --danger-bg:     #FBEAE7;
+    --danger-border: #EFC3BB;
 
-    /* Depth */
-    --shadow: 0 1px 3px rgba(15,20,31,0.08), 0 4px 16px rgba(15,20,31,0.08);
+    --shadow: 0 1px 2px rgba(23,27,46,0.05), 0 4px 14px rgba(23,27,46,0.06);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -753,6 +748,12 @@ for msg in st.session_state.messages:
                     unsafe_allow_html=True,
                 )
 
+        if msg["role"] == "assistant" and msg.get("confidence"):
+            st.markdown(
+                f"<div class='hint-text'>🎯 Confidence: {msg['confidence']}</div>",
+                unsafe_allow_html=True,
+            )
+
 # Chat input
 if prompt := st.chat_input("Ask a question about your documents…"):
 
@@ -774,6 +775,7 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 answer = result["answer"]
                 sources = result["sources"]
                 rewritten = result["rewritten_query"]
+                confidence = result["confidence"]
                 
                 append_turn(
                     st.session_state.session_id,
@@ -786,6 +788,7 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 answer = f"❌ Error: {str(e)}"
                 sources = []
                 rewritten = ""
+                confidence = ""
 
         st.markdown(answer)
 
@@ -802,11 +805,18 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 unsafe_allow_html=True,
             )
 
+        if confidence:
+            st.markdown(
+                f"<div class='hint-text'>🎯 Confidence: {confidence}</div>",
+                unsafe_allow_html=True,
+            )
+
     st.session_state.messages.append({
         "role": "assistant",
         "content": answer,
         "sources": sources,
         "rewritten": rewritten,
+        "confidence": confidence,
         "original_question": prompt,
     })
 
