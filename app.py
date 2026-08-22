@@ -14,11 +14,9 @@ main.py (the FastAPI backend), so both stay in sync.
 """
 
 import uuid
-import os
 import streamlit as st
 from typing import List, Dict
-# Map the Streamlit secret directly to the environment variable
-os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+
 # Import all services directly
 from services.vector_store import VectorStore
 from services.qa_engine import answer_question
@@ -748,12 +746,6 @@ for msg in st.session_state.messages:
                     unsafe_allow_html=True,
                 )
 
-        if msg["role"] == "assistant" and msg.get("confidence"):
-            st.markdown(
-                f"<div class='hint-text'>🎯 Confidence: {msg['confidence']}</div>",
-                unsafe_allow_html=True,
-            )
-
 # Chat input
 if prompt := st.chat_input("Ask a question about your documents…"):
 
@@ -775,7 +767,6 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 answer = result["answer"]
                 sources = result["sources"]
                 rewritten = result["rewritten_query"]
-                confidence = result["confidence"]
                 
                 append_turn(
                     st.session_state.session_id,
@@ -788,7 +779,6 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 answer = f"❌ Error: {str(e)}"
                 sources = []
                 rewritten = ""
-                confidence = ""
 
         st.markdown(answer)
 
@@ -805,18 +795,11 @@ if prompt := st.chat_input("Ask a question about your documents…"):
                 unsafe_allow_html=True,
             )
 
-        if confidence:
-            st.markdown(
-                f"<div class='hint-text'>🎯 Confidence: {confidence}</div>",
-                unsafe_allow_html=True,
-            )
-
     st.session_state.messages.append({
         "role": "assistant",
         "content": answer,
         "sources": sources,
         "rewritten": rewritten,
-        "confidence": confidence,
         "original_question": prompt,
     })
 
