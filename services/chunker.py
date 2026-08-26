@@ -123,3 +123,114 @@ def chunk_sections(
             all_chunks.append(c)
 
     return all_chunks
+
+
+def chunk_rows(
+    rows: List[str],
+    max_rows: int = 8,
+    max_chars: int = 600,
+) -> List[Dict]:
+    """
+    Packs pre-split, atomic row strings (see csv_loader.py / xlsx_loader.py
+    -- each row already renders as "Column: value, Column: value") into
+    chunks of up to max_rows rows or max_chars characters, whichever comes
+    first.
+
+    Deliberately no overlap: chunk_text()'s overlap exists to avoid losing
+    context across an arbitrary character-level cut in flowing prose, but
+    each row here is already a complete, independent record, so there's
+    nothing an overlap would usefully preserve -- and naively slicing the
+    last N characters of a packed chunk (as chunk_text() does) risks
+    cutting a row's own text in half, mixing a fragment of one record into
+    the next chunk. Every chunk this returns contains only whole rows, so
+    a chunk that matches a query on one row's ID is guaranteed to also
+    contain that same row's other column values.
+    """
+    chunks: List[Dict] = []
+    current: List[str] = []
+    current_len = 0
+
+    def flush():
+        if current:
+            chunks.append({
+                "text": "\n\n".join(current),
+                "chunk_index": len(chunks),
+                "char_start": 0,  # not meaningful for row-packed chunks
+            })
+
+    for row in rows:
+        row_len = len(row)
+        would_exceed = current and (
+            current_len + row_len > max_chars or len(current) >= max_rows
+        )
+        if would_exceed:
+            flush()
+            current = []
+            current_len = 0
+        current.append(row)
+        current_len += row_len
+
+    flush()
+    return chunks
+
+
+def chunk_sections_tabular(
+    sections: List[Dict],
+    max_rows: int = 8,
+    max_chars: int = 600,
+) -> List[Dict]:
+    """
+    Row-aware counterpart to chunk_sections(), for sources where each
+    section's text is a blank-line-joined list of independent rows --
+    CSV, XLSX (see services/loaders/csv_loader.py and xlsx_loader.py,
+    which already join one row per paragraph exactly like chunk_text()
+    expects). Splits each section back into its rows with the same
+    paragraph splitter chunk_text() uses, then packs them with
+    chunk_rows() instead of chunk_text()'s character-budget prose packer,
+    so a chunk never mixes a partial row with the next chunk.
+
+    Same output contract as chunk_sections(): each chunk carries the
+    page/heading of the section it came from (so e.g. an XLSX sheet name
+    still comes through as the heading), with chunk_index numbered
+    continuously across the whole document.
+    """
+    all_chunks: List[Dict] = []
+
+    for section in sections:
+        text = (section.get("text") or "").strip()
+        if not text:
+            continue
+
+        rows = _split_paragraphs(text)
+        sub_chunks = chunk_rows(rows, max_rows=max_rows, max_chars=max_chars)
+        for c in sub_chunks:
+            c["chunk_index"] = len(all_chunks)
+            c["page"] = section.get("page")
+            c["heading"] = section.get("heading")
+            all_chunks.append(c)
+
+    return all_chunks
+
+
+def contextual_text(chunk: Dict, doc_title: str) -> str:
+    """
+    Text for embedding/BM25 indexing ONLY -- never for what's shown to
+    the user or sent to the LLM as context (chunk["text"] stays clean
+    for that; see qa_engine._build_context_block).
+
+    Prefixes the chunk with its doc title + section heading (when the
+    loader found one) so a chunk about e.g. renewal terms sitting under
+    a "Termination" heading is retrievable by a query like
+    "termination", even though that word may never appear in the chunk
+    body itself.
+    """
+    parts = [doc_title] if doc_title else []
+    heading = chunk.get("heading")
+    if heading:
+        parts.append(heading)
+
+    if not parts:
+        return chunk["text"]
+
+    prefix = " > ".join(parts)
+    return f"{prefix}\n{chunk['text']}"
