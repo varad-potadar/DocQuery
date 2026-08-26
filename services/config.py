@@ -17,15 +17,12 @@ silently reused after such a change.
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 
-CACHE_SCHEMA_VERSION = 2
-# v2: chunks are now embedded/BM25-indexed as "doc title — heading — text"
-# instead of bare text (see ingest.py's _build_embed_text). Bumping this
-# forces documents cached under v1 to be reprocessed once, so everyone
-# actually gets the improved retrieval instead of silently keeping the
-# old, less-findable embeddings forever.
+CACHE_SCHEMA_VERSION = 3  # v3: CSV/XLSX now chunked row-aware via chunk_sections_tabular() instead of the generic character-budget packer
 
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 120
+
+MAX_ROWS_PER_CHUNK = 8  # cap for chunk_sections_tabular() (CSV/XLSX) -- see services/chunker.py
 
 # How many past conversations the sidebar shows (most recently active
 # first). A simple cap, not pagination — keeps the sidebar bounded
