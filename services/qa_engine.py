@@ -20,7 +20,7 @@ from typing import List, Dict, Tuple
 
 from services.embedder import embed_chunks
 from services.query_rewriter import rewrite_query
-from services.reranker import rerank_chunks
+from services.reranker import rerank as rerank_chunks
 from services.retry import retry_with_backoff
 
 _client = None
