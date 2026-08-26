@@ -17,6 +17,8 @@ PyMuPDF
 sentence-transformers
 faiss-cpu
 google-genai
+httpx
+tenacity
 python-multipart
 rank-bm25
 python-docx
