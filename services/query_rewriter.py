@@ -19,10 +19,11 @@ from google import genai
 from google.genai import types
 from typing import List, Dict
 
+from services.retry import retry_with_backoff
+
 _client = None
 
 GEMINI_MODEL = "gemini-3.6-flash"
-# Kept in sync with qa_engine.py -- see the comment there for why.
 
 
 def _get_client() -> genai.Client:
@@ -30,6 +31,24 @@ def _get_client() -> genai.Client:
     if _client is None:
         _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     return _client
+
+
+@retry_with_backoff()
+def _generate(prompt: str) -> str:
+    """LLM call, wrapped with retry_with_backoff (see services/retry.py):
+    retries on 503/5xx, 429, and transient network errors before giving
+    up -- this call previously had no retry at all, so a single blip
+    used to silently fall straight back to the un-rewritten question."""
+    client = _get_client()
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.0,
+            max_output_tokens=100,
+        ),
+    )
+    return response.text
 
 
 def _needs_rewriting(question: str, history: List[Dict]) -> bool:
@@ -82,25 +101,7 @@ Follow-up question: {question}
 Rewritten question:"""
 
     try:
-        client = _get_client()
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                max_output_tokens=300,
-                # gemini-3.6-flash controls thinking with thinking_level, not
-                # the older numeric thinking_budget (mixing them is a hard
-                # error on Gemini 3+ models) -- see qa_engine.py's LLM call
-                # for the full explanation. "minimal" is the lowest this
-                # model goes; thinking can't be fully disabled the way
-                # gemini-2.5-flash's thinking_budget=0 could, which is also
-                # why max_output_tokens has a bit more headroom than the
-                # ~100 tokens a short rewrite alone would need.
-                thinking_config=types.ThinkingConfig(thinking_level="minimal"),
-            ),
-        )
-        rewritten = (response.text or "").strip()
+        rewritten = _generate(prompt).strip()
 
         # Sanity check: result should be a question, not an answer
         if len(rewritten) > 10 and len(rewritten) < 300:
