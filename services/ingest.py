@@ -20,10 +20,15 @@ restore_from_cache() — load a previously processed document back into
 from typing import Dict
 
 from services.loaders import load_document, is_supported, get_extension, SUPPORTED_EXTENSIONS
-from services.chunker import chunk_sections
+from services.chunker import chunk_sections, chunk_sections_tabular, contextual_text
 from services.embedder import embed_chunks
-from services.config import CHUNK_SIZE, CHUNK_OVERLAP
+from services.config import CHUNK_SIZE, CHUNK_OVERLAP, MAX_ROWS_PER_CHUNK
 from services import cache
+
+# source_type values (set by services/loaders/*.py in document["metadata"])
+# that are row-structured rather than prose -- these get chunked by whole
+# row instead of by character count. See chunk_sections_tabular().
+TABULAR_SOURCE_TYPES = {"csv", "xlsx"}
 
 
 def is_useful_chunk(text: str) -> bool:
@@ -41,24 +46,6 @@ def is_useful_chunk(text: str) -> bool:
         "table of contents",
     ]
     return not any(p in t for p in noise_patterns)
-
-
-def _build_embed_text(chunk: Dict, doc_title: str) -> str:
-    """
-    What actually gets embedded and BM25-indexed for this chunk --
-    prefixed with the document title and (when known) the section
-    heading it came from, e.g. "Vendor Agreement — Termination — {text}".
-
-    chunk["text"] itself is untouched by this and stays exactly what's
-    shown to the LLM and cited in answers -- this prefix only helps
-    retrieval find a chunk whose relevant words live in its title or
-    heading rather than its body (a chunk about renewal sitting under a
-    "Termination" heading is otherwise invisible to a query that says
-    "termination").
-    """
-    parts = [p for p in (doc_title, chunk.get("heading")) if p]
-    parts.append(chunk["text"])
-    return " — ".join(parts)
 
 
 def process_upload(
@@ -100,17 +87,33 @@ def process_upload(
     else:
         document = load_document(file_bytes, filename)
 
-        chunks = chunk_sections(document["sections"], chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP)
+        if document["metadata"].get("source_type") in TABULAR_SOURCE_TYPES:
+            # Row-structured data (CSV/XLSX): chunk by whole row so a
+            # chunk never mixes a partial row into the next one -- see
+            # chunk_sections_tabular() for why the generic character-
+            # budget packer below is the wrong tool for this.
+            chunks = chunk_sections_tabular(document["sections"], max_rows=MAX_ROWS_PER_CHUNK, max_chars=CHUNK_SIZE)
+        else:
+            chunks = chunk_sections(document["sections"], chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP)
+
         chunks = [c for c in chunks if is_useful_chunk(c["text"])]
 
         if not chunks:
             raise ValueError(f"'{filename}': no usable text could be extracted.")
 
-        doc_title = document.get("title") or filename
+        # Prefix each chunk with its doc title + section heading before
+        # embedding/BM25-indexing -- NOT before showing it to the LLM, so
+        # chunk["text"] itself stays untouched. This is what lets a query
+        # like "termination" find a chunk about renewal terms that sits
+        # under a "Termination" heading but never uses that word itself.
+        # Stored on the chunk dict (like "page"/"heading" already are) so
+        # it's cached alongside the chunk and reused on cache hits too.
+        doc_title = document["title"]
         for c in chunks:
-            c["embed_text"] = _build_embed_text(c, doc_title)
+            c["index_text"] = contextual_text(c, doc_title)
 
-        embeddings = embed_chunks([c["embed_text"] for c in chunks])
+        texts = [c["index_text"] for c in chunks]
+        embeddings = embed_chunks(texts)
 
         meta = {"title": document["title"], **document["metadata"]}
 
